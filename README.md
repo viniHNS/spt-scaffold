@@ -1,4 +1,4 @@
-# SPT Scaffold
+# spt-scaffold
 
 A TUI wizard that scaffolds ready-to-build **SPT 4.0 server mod** projects.
 
@@ -43,12 +43,26 @@ MyMod/
 
 ## Build from source
 
+**Windows**
 ```sh
 git clone https://github.com/viniHNS/spt-scaffold-go
 cd spt-scaffold-go
 go mod tidy
 go build -ldflags="-s -w" -o spt-scaffold.exe
+.\spt-scaffold.exe
 ```
+
+**Linux**
+```sh
+git clone https://github.com/viniHNS/spt-scaffold-go
+cd spt-scaffold-go
+go mod tidy
+go build -ldflags="-s -w" -o spt-scaffold
+./spt-scaffold
+```
+
+> **Note:** The prebuilt Windows binary does not display correctly under Wine.
+> Build natively for Linux instead.
 
 ---
 
