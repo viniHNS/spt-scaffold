@@ -4,12 +4,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"spt-scaffold/internal/styles"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+var templateLabels = map[string]string{
+	"empty":         "Empty",
+	"log":           "Log",
+	"editdatabase":  "Edit Database",
+	"editsptconfig": "Edit SPT Config",
+}
 
 func updateConfirm(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -21,9 +29,10 @@ func updateConfirm(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = StateProgress
 			return m, tea.Batch(m.spinner.Tick, scaffoldStreamCmd(m.cfg))
 		case "e", "E":
-			// Go back to form step 1.
 			m.formStep = 0
-			m.inputs[0].Focus()
+			if isTextStep(m.formStep) {
+				m.inputs[m.formStep].Focus()
+			}
 			m.state = StateForm
 			return m, textinputBlink()
 		}
@@ -49,7 +58,7 @@ func viewConfirm(m Model) string {
 
 	cfg := m.cfg
 	sptDisplay := cfg.SptVersion + "  " + lipgloss.NewStyle().Foreground(styles.ColorMuted).Render("(range: "+cfg.SptVersionRange+")")
-	summary := lipgloss.JoinVertical(lipgloss.Left,
+	rows := []string{
 		row("Mod Name", cfg.ModName),
 		row("Author", cfg.Author),
 		row("Version", cfg.Version),
@@ -57,17 +66,19 @@ func viewConfirm(m Model) string {
 		row("Description", ifEmpty(cfg.Desc, "(none)")),
 		row("Repository URL", ifEmpty(cfg.RepoURL, "(none)")),
 		row("License", cfg.License),
-	)
+		row("Mod Type", titleCase(cfg.ModType)),
+	}
+	if cfg.ModType == "server" {
+		rows = append(rows, row("Template", templateLabels[cfg.ModTemplate]))
+	}
+	summary := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
 	// Output path.
 	cwd, _ := os.Getwd()
 	outPath := filepath.Join(cwd, cfg.ModName)
 	pathLine := styles.Hint.Render("Output: ") + styles.OutputPath.Render(outPath)
 
-	boxW := width - 8
-	if boxW < 40 {
-		boxW = 40
-	}
+	boxW := max(width-8, 40)
 
 	box := styles.ConfirmBox.Width(boxW).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
@@ -112,4 +123,12 @@ func outputPath(modName string) string {
 
 func formatOutputPath(modName string) string {
 	return fmt.Sprintf("%s", outputPath(modName))
+}
+
+// titleCase uppercases the first letter of s.
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

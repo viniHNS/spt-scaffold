@@ -17,12 +17,13 @@ const AppVersion = "v0.1.0"
 type state int
 
 const (
-	StateWelcome  state = iota
-	StateForm     state = iota
-	StateConfirm  state = iota
-	StateProgress state = iota
-	StateDone     state = iota
-	StateError    state = iota
+	StateWelcome        state = iota
+	StateModType        state = iota
+	StateForm           state = iota
+	StateConfirm        state = iota
+	StateProgress       state = iota
+	StateDone           state = iota
+	StateError          state = iota
 )
 
 // tickMsg is sent by the blink ticker on the welcome screen.
@@ -50,14 +51,19 @@ type Model struct {
 	termH int
 
 	// SPT versions (fetched from NuGet, descending order)
-	sptVersions    []string
-	sptVersionIdx  int
+	sptVersions   []string
+	sptVersionIdx int
 
 	// Form
-	formStep   int
-	inputs     []textinput.Model
-	formErrors []string
-	licenseIdx int
+	formStep    int
+	inputs      []textinput.Model
+	formErrors  []string
+	licenseIdx  int
+	templateIdx int // index into the active template list (ServerTemplates or ClientTemplates)
+
+	// Mod type + template selection
+	modTypeIdx    int    // 0=Server, 1=Client
+	modTypeHint   string // shown when user attempts to select WIP Client
 
 	// Confirm
 	cfg config.ModConfig
@@ -87,7 +93,7 @@ func NewModel() Model {
 		state:      StateWelcome,
 		blink:      true,
 		inputs:     inputs,
-		formErrors: make([]string, len(inputs)),
+		formErrors: make([]string, len(fields)),
 		licenseIdx: 0,
 		spinner:    sp,
 	}
@@ -129,6 +135,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.state {
 	case StateWelcome:
 		return updateWelcome(m, msg)
+	case StateModType:
+		return updateModType(m, msg)
 	case StateForm:
 		return updateForm(m, msg)
 	case StateConfirm:
@@ -148,6 +156,8 @@ func (m Model) View() string {
 	switch m.state {
 	case StateWelcome:
 		return viewWelcome(m)
+	case StateModType:
+		return viewModType(m)
 	case StateForm:
 		return viewForm(m)
 	case StateConfirm:
@@ -160,6 +170,15 @@ func (m Model) View() string {
 		return viewError(m)
 	}
 	return ""
+}
+
+// activeTemplateList returns the correct template slice for the currently selected mod type,
+// with the templateIdx clamped to a valid index.
+func (m Model) activeTemplateList() []config.TemplateEntry {
+	if config.ModTypes[m.modTypeIdx].Value == config.ModTypeClient {
+		return config.ClientTemplates
+	}
+	return config.ServerTemplates
 }
 
 // selectedSptVersion returns the currently selected SPT version.
@@ -175,22 +194,34 @@ func (m Model) selectedSptVersion() string {
 
 // buildConfig populates a ModConfig from the form inputs.
 func (m Model) buildConfig() config.ModConfig {
-	v := m.inputs[2].Value()
+	activeTemplates := m.activeTemplateList()
+
+	tmplIdx := m.templateIdx
+	if len(activeTemplates) == 0 || tmplIdx >= len(activeTemplates) {
+		tmplIdx = 0
+	}
+
+	v := m.inputs[5].Value() // Version (fields[5])
 	if v == "" {
 		v = "1.0.0"
 	}
-
 	sptVer := m.selectedSptVersion()
+	modType := config.ModTypes[m.modTypeIdx].Value
+	modTemplate := activeTemplates[tmplIdx].Value
 
 	return config.ModConfig{
-		ModName:         m.inputs[0].Value(),
-		Author:          m.inputs[1].Value(),
+		ModName:         m.inputs[3].Value(),
+		Author:          m.inputs[4].Value(),
 		Version:         v,
 		SptVersion:      sptVer,
 		SptVersionRange: config.SptVersionRange(sptVer),
-		Desc:            m.inputs[4].Value(),
-		RepoURL:         m.inputs[5].Value(),
+		Desc:            m.inputs[7].Value(),
+		RepoURL:         m.inputs[8].Value(),
 		License:         config.Licenses[m.licenseIdx].SPDX,
+		SptInstallPath:  m.inputs[2].Value(),
+		ProjectGuid:     config.NewProjectGuid(),
+		ModType:         modType,
+		ModTemplate:     modTemplate,
 	}
 }
 

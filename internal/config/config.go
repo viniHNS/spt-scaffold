@@ -1,8 +1,12 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -16,6 +20,12 @@ type ModConfig struct {
 	Desc            string `json:"description"`
 	RepoURL         string `json:"repository_url"`
 	License         string `json:"license"`
+	ModType         string `json:"mod_type"`
+	ModTemplate     string `json:"mod_template"`
+	// SptInstallPath is the absolute path to the SPT installation directory (client mods only).
+	SptInstallPath string `json:"spt_install_path"`
+	// ProjectGuid is the generated UUID for the .sln file.
+	ProjectGuid string `json:"project_guid"`
 }
 
 var semverRe = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
@@ -77,6 +87,19 @@ func ValidateRepoURL(s string) error {
 	return nil
 }
 
+// ValidateSptInstallPath checks the path is non-empty and contains BepInEx/core/BepInEx.dll.
+func ValidateSptInstallPath(p string) error {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return fmt.Errorf("SPT install path is required")
+	}
+	check := filepath.Join(p, "BepInEx", "core", "BepInEx.dll")
+	if _, err := os.Stat(check); err != nil {
+		return fmt.Errorf("not a valid SPT install directory (BepInEx/core/BepInEx.dll not found)")
+	}
+	return nil
+}
+
 // LicenseEntry holds the display label and SPDX identifier for a license.
 type LicenseEntry struct {
 	Label string
@@ -103,3 +126,71 @@ var Licenses = []LicenseEntry{
 	{"The Unlicense", "Unlicense"},
 	{"University of Illinois/NCSA Open Source License", "NCSA"},
 }
+
+// ModTypeServer and ModTypeClient are the canonical Value strings for mod types.
+const (
+	ModTypeServer = "server"
+	ModTypeClient = "client"
+)
+
+// ModTypes lists the available mod types. Disabled items are shown but not selectable.
+var ModTypes = []struct {
+	Label    string
+	Value    string
+	Disabled bool
+}{
+	{"Server Mod", "server", false},
+	{"Client Mod", "client", false},
+}
+
+// TemplateEntry describes a scaffold template option.
+type TemplateEntry struct {
+	Label string `json:"Label"`
+	Value string `json:"-"` // We will set this from the directory name
+	Desc  string `json:"Desc"`
+}
+
+// ServerTemplates lists the available server mod templates.
+var ServerTemplates []TemplateEntry
+
+// ClientTemplates lists the available client mod templates.
+var ClientTemplates []TemplateEntry
+
+// LoadTemplates given an fs.FS and a base directory ("server" or "client")
+// reads the available templates.
+func LoadTemplates(fsys interface{ ReadDir(string) ([]os.DirEntry, error); ReadFile(string) ([]byte, error) }, base string) ([]TemplateEntry, error) {
+	entries, err := fsys.ReadDir(base)
+	if err != nil {
+		return nil, fmt.Errorf("reading template directory %s: %w", base, err)
+	}
+
+	var templates []TemplateEntry
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		
+		val := e.Name()
+		jsonPath := filepath.ToSlash(filepath.Join(base, val, "template.json"))
+		b, err := fsys.ReadFile(jsonPath)
+		if err != nil {
+			// skip if no template.json
+			continue
+		}
+
+		var te TemplateEntry
+		if err := json.Unmarshal(b, &te); err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", jsonPath, err)
+		}
+		te.Value = val
+		templates = append(templates, te)
+	}
+	
+	// Ensure "empty" is always first if it exists
+	sort.SliceStable(templates, func(i, j int) bool {
+		return templates[i].Value == "empty"
+	})
+	
+	return templates, nil
+}
+

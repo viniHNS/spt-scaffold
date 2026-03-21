@@ -1,0 +1,21 @@
+using BepInEx;
+using BepInEx.Logging;
+
+namespace {{.Author}}.{{.ModName}}
+{
+    [BepInPlugin("{{.Author}}.{{.ModName}}", "{{.ModName}}", "{{.Version}}")]
+    public class Plugin : BaseUnityPlugin
+    {
+        public static ManualLogSource LogSource;
+
+        private void Awake()
+        {
+            LogSource = Logger;
+            LogSource.LogInfo("{{.ModName}} loaded!");
+
+            // Enable your patches here. Each patch class inherits ModulePatch.
+            // Uncomment the line below to enable the example patch:
+            // new ExamplePatch().Enable();
+        }
+    }
+}

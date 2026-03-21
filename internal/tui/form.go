@@ -18,26 +18,40 @@ type fieldMeta struct {
 	placeholder  string
 	defaultVal   string
 	maxLen       int
-	isList       bool // license picker
-	isSptVersion bool // SPT version picker
+	isList       bool // license picker (step 9)
+	isSptVersion bool // SPT version picker (step 6)
+	isModType    bool // mod type picker (step 0)
+	isTemplate   bool // template picker (step 1)
+	isSptPath    bool // SPT install path text input (step 2, client only)
 }
 
 // fields defines every form step in order.
-// Steps 3 (isSptVersion) and 6 (isList) are pickers, not text inputs.
+// Steps 0 (isModType), 1 (isTemplate), 6 (isSptVersion), 9 (isList) are pickers, not text inputs.
+// Step 2 (isSptPath) is a text input shown only to client mod users.
 var fields = []fieldMeta{
-	{label: "Mod Name", placeholder: "MyAwesomeMod"},
-	{label: "Author", placeholder: "YourUsername"},
-	{label: "Version", placeholder: "1.0.0", defaultVal: "1.0.0"},
-	{label: "SPT Version", isSptVersion: true},
-	{label: "Description", placeholder: "Short description (optional, max 120 chars)", maxLen: 120},
-	{label: "Repository URL", placeholder: "https://github.com/you/mod (optional)"},
-	{label: "License", isList: true},
+	{label: "Mod Type", isModType: true},                                                            // step 0
+	{label: "Template", isTemplate: true},                                                           // step 1
+	{label: "SPT Install Path", placeholder: `C:\SPT`, isSptPath: true},                            // step 2 (client only)
+	{label: "Mod Name", placeholder: "MyAwesomeMod"},                                               // step 3
+	{label: "Author", placeholder: "YourUsername"},                                                  // step 4
+	{label: "Version", placeholder: "1.0.0", defaultVal: "1.0.0"},                                  // step 5
+	{label: "SPT Version", isSptVersion: true},                                                      // step 6
+	{label: "Description", placeholder: "Short description (optional, max 120 chars)", maxLen: 120}, // step 7
+	{label: "Repository URL", placeholder: "https://github.com/you/mod (optional)"},                // step 8
+	{label: "License", isList: true},                                                                // step 9
 }
+
+// Form step indices — update these if the fields slice order changes.
+const (
+	stepTemplate = 1 // isTemplate picker
+	stepSptPath  = 2 // isSptPath text input (client only)
+	stepModName  = 3 // first text input
+)
 
 func makeInputs() []textinput.Model {
 	inputs := make([]textinput.Model, len(fields))
 	for i, f := range fields {
-		if f.isList || f.isSptVersion {
+		if f.isList || f.isSptVersion || f.isModType || f.isTemplate {
 			continue
 		}
 		ti := textinput.New()
@@ -66,31 +80,30 @@ func isTextStep(step int) bool {
 	if step < 0 || step >= len(fields) {
 		return false
 	}
-	return !fields[step].isList && !fields[step].isSptVersion
+	f := fields[step]
+	return !f.isList && !f.isSptVersion && !f.isModType && !f.isTemplate
 }
 
 func validateStep(m Model, step int) error {
 	switch step {
-	case 0:
-		return config.ValidateModName(m.inputs[0].Value())
-	case 1:
-		return config.ValidateAuthor(m.inputs[1].Value())
 	case 2:
-		v := m.inputs[2].Value()
+		return config.ValidateSptInstallPath(m.inputs[2].Value())
+	case 3:
+		return config.ValidateModName(m.inputs[3].Value())
+	case 4:
+		return config.ValidateAuthor(m.inputs[4].Value())
+	case 5:
+		v := m.inputs[5].Value()
 		if v == "" {
 			v = "1.0.0"
 		}
 		return config.ValidateSemver(v)
-	case 3:
-		return nil // SPT version picker is always valid
-	case 4:
-		return config.ValidateDescription(m.inputs[4].Value())
-	case 5:
-		return config.ValidateRepoURL(m.inputs[5].Value())
-	case 6:
-		return nil // license picker is always valid
+	case 7:
+		return config.ValidateDescription(m.inputs[7].Value())
+	case 8:
+		return config.ValidateRepoURL(m.inputs[8].Value())
 	}
-	return nil
+	return nil // steps 0, 1, 6, 9: pickers; step 2 for server: unreachable via navigation
 }
 
 func updateForm(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -103,22 +116,38 @@ func updateForm(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case "esc":
-			if step <= 0 {
-				return m, textinput.Blink
+			isServer := config.ModTypes[m.modTypeIdx].Value == config.ModTypeServer
+			firstStep := stepTemplate
+
+			if step <= firstStep {
+				if isTextStep(step) {
+					m.inputs[step].Blur()
+				}
+				m.formErrors[step] = ""
+				m.state = StateModType
+				return m, nil
 			}
 			m.formErrors[step] = ""
 			if isTextStep(step) {
 				m.inputs[step].Blur()
 			}
-			m.formStep = step - 1
-			if isTextStep(step - 1) {
-				m.inputs[step-1].Focus()
+
+			if step == stepModName && isServer {
+				m.formStep = stepTemplate
+			} else {
+				m.formStep = step - 1
+			}
+
+			prev := m.formStep
+			if isTextStep(prev) {
+				m.inputs[prev].Focus()
 			}
 			return m, textinput.Blink
 
 		case "enter":
-			if step == 2 && m.inputs[2].Value() == "" {
-				m.inputs[2].SetValue("1.0.0")
+			// Version default fill — step 5
+			if step == 5 && m.inputs[5].Value() == "" {
+				m.inputs[5].SetValue("1.0.0")
 			}
 
 			if err := validateStep(m, step); err != nil {
@@ -136,7 +165,14 @@ func updateForm(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
 			if isTextStep(step) {
 				m.inputs[step].Blur()
 			}
-			m.formStep++
+
+			// Server skips SPT Install Path (step 2) when advancing from Template (step 1)
+			if step == stepTemplate && config.ModTypes[m.modTypeIdx].Value == config.ModTypeServer {
+				m.formStep = stepModName
+			} else {
+				m.formStep++
+			}
+
 			next := m.formStep
 			if isTextStep(next) {
 				m.inputs[next].Focus()
@@ -145,6 +181,14 @@ func updateForm(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "up":
 			switch {
+			case fields[step].isModType:
+				newIdx := m.modTypeIdx - 1
+				if newIdx >= 0 && !config.ModTypes[newIdx].Disabled {
+					m.modTypeIdx = newIdx
+					m.templateIdx = 0
+				}
+			case fields[step].isTemplate && m.templateIdx > 0:
+				m.templateIdx--
 			case fields[step].isSptVersion && m.sptVersionIdx > 0:
 				m.sptVersionIdx--
 			case fields[step].isList && m.licenseIdx > 0:
@@ -154,6 +198,17 @@ func updateForm(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "down":
 			switch {
+			case fields[step].isModType:
+				newIdx := m.modTypeIdx + 1
+				if newIdx < len(config.ModTypes) && !config.ModTypes[newIdx].Disabled {
+					m.modTypeIdx = newIdx
+					m.templateIdx = 0
+				}
+			case fields[step].isTemplate:
+				tmpl := m.activeTemplateList()
+				if m.templateIdx < len(tmpl)-1 {
+					m.templateIdx++
+				}
 			case fields[step].isSptVersion && len(m.sptVersions) > 0 && m.sptVersionIdx < len(m.sptVersions)-1:
 				m.sptVersionIdx++
 			case fields[step].isList && m.licenseIdx < len(config.Licenses)-1:
@@ -210,6 +265,41 @@ func viewForm(m Model) string {
 	var inputView, extra string
 
 	switch {
+	case f.isModType:
+		var lines []string
+		for i, mt := range config.ModTypes {
+			if mt.Disabled {
+				lines = append(lines, lipgloss.NewStyle().Foreground(styles.ColorMuted).
+					Render("  "+mt.Label+"  (coming soon)"))
+			} else if i == m.modTypeIdx {
+				lines = append(lines, styles.SelectItemActive.Render("▶ "+mt.Label))
+			} else {
+				lines = append(lines, styles.SelectItem.Render("  "+mt.Label))
+			}
+		}
+		inputView = strings.Join(lines, "\n")
+		extra = styles.Hint.Render("↑/↓ to select, ENTER to confirm")
+
+	case f.isTemplate:
+		tmpl := m.activeTemplateList()
+		var lines []string
+		for i, t := range tmpl {
+			if i == m.templateIdx {
+				lines = append(lines, styles.SelectItemActive.Render("▶ "+t.Label))
+			} else {
+				lines = append(lines, styles.SelectItem.Render("  "+t.Label))
+			}
+		}
+		inputView = strings.Join(lines, "\n")
+		tmplIdx := m.templateIdx
+		if len(tmpl) == 0 {
+			break
+		}
+		if tmplIdx >= len(tmpl) {
+			tmplIdx = len(tmpl) - 1
+		}
+		extra = styles.Hint.Render(tmpl[tmplIdx].Desc)
+
 	case f.isSptVersion:
 		if len(m.sptVersions) == 0 {
 			inputView = styles.Hint.Render("  Fetching available versions...")
@@ -255,9 +345,9 @@ func viewForm(m Model) string {
 
 	default:
 		inputView = styles.InputActive.Render(m.inputs[step].View())
-		if step == 4 { // Description
-			count := len(m.inputs[4].Value())
-			extra = styles.CharCounter.Render(fmt.Sprintf("%d / 120", count))
+		if fields[step].maxLen > 0 {
+			count := len(m.inputs[step].Value())
+			extra = styles.CharCounter.Render(fmt.Sprintf("%d / %d", count, fields[step].maxLen))
 		} else {
 			extra = styles.Hint.Render("ENTER to continue, ESC to go back")
 		}

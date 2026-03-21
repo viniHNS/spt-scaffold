@@ -1,0 +1,4 @@
+{
+  "Desc": "Minimal BepInEx plugin with Awake() entry point",
+  "Label": "Empty"
+}

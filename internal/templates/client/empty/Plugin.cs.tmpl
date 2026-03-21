@@ -1,0 +1,20 @@
+using BepInEx;
+using BepInEx.Logging;
+
+namespace {{.Author}}.{{.ModName}}
+{
+    // The first string is your plugin's GUID — it MUST be unique across all mods.
+    // Convention: AuthorName.ModName (reverse-domain style).
+    [BepInPlugin("{{.Author}}.{{.ModName}}", "{{.ModName}}", "{{.Version}}")]
+    public class Plugin : BaseUnityPlugin
+    {
+        public static ManualLogSource LogSource;
+
+        // BaseUnityPlugin inherits MonoBehaviour, so you can use Awake(), Update(), etc.
+        private void Awake()
+        {
+            LogSource = Logger;
+            LogSource.LogInfo("{{.ModName}} loaded!");
+        }
+    }
+}

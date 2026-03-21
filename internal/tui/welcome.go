@@ -33,11 +33,8 @@ func updateWelcome(m Model, msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
-			m.state = StateForm
-			if len(m.inputs) > 0 {
-				m.inputs[0].Focus()
-			}
-			return m, textinputBlink()
+			m.state = StateModType
+			return m, nil
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
@@ -53,7 +50,7 @@ func viewWelcome(m Model) string {
 
 	art := styles.Banner.Render(asciiArt)
 
-	subtitle := styles.Subtitle.Render("Server Mod Scaffolder for SPT 4.0")
+	subtitle := styles.Subtitle.Render("Mod Scaffolder for SPT 4.0")
 
 	var cursor string
 	if m.blink {

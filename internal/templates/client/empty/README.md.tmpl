@@ -1,0 +1,67 @@
+# {{.ModName}}
+
+> {{.Desc}}
+
+**Author:** {{.Author}}  
+**Version:** {{.Version}}  
+**SPT Version:** {{.SptVersion}}  
+**License:** {{.License}}
+
+---
+
+## What This Mod Does
+
+Describe what your mod does here.
+
+---
+
+## Requirements
+
+- [SPT](https://www.sp-tarkov.com/) installed (BepInEx is included)
+- .NET SDK (`netstandard2.1`-compatible) for building from source
+
+---
+
+## Building
+
+```sh
+cd {{.ModName}}
+dotnet build -c Release
+```
+
+The PostBuild target automatically copies the compiled DLL to your SPT installation's `BepInEx\plugins\` folder.
+The project also packages the mod into a distributable `{{.ModName}}.zip` ready to be uploaded.
+
+---
+
+## Installation
+
+1. Build the project (see above) **or** download the latest release DLL.
+2. Copy `{{.ModName}}.dll` to `<SPT install>\BepInEx\plugins\`.
+3. Launch SPT as usual.
+
+---
+
+## Project Structure
+
+```
+{{.ModName}}/
+├── {{.ModName}}.csproj   ← project file with DLL references
+├── Plugin.cs              ← BepInEx plugin entry point
+├── README.md
+└── .gitignore
+```
+
+---
+
+## Learning Resources
+
+| Resource | URL |
+|---|---|
+| BepInEx | https://docs.bepinex.dev/ |
+| SPT Client Mod Examples | https://github.com/Jehree/SPTClientModExamples |
+| SPT Wiki Modding Resources | https://wiki.sp-tarkov.com/modding/Modding_Resources |
+
+
+---
+

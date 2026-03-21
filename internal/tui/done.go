@@ -9,8 +9,8 @@ import (
 	"spt-scaffold/internal/config"
 	"spt-scaffold/internal/styles"
 
-	"github.com/charmbracelet/glamour"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -91,6 +91,7 @@ func buildDoneContent(m Model) string {
 		tree,
 		"",
 		nextSteps,
+		buildResourcesSection(),
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
@@ -99,33 +100,70 @@ func renderTree(cfg config.ModConfig) string {
 	cwd, _ := os.Getwd()
 	root := filepath.Join(cwd, cfg.ModName)
 
+	mainFile := "Mod.cs"
+	if cfg.ModType == config.ModTypeClient {
+		mainFile = "Plugin.cs"
+	}
+
 	lines := []string{
 		styles.TreeDir.Render(root + "/"),
+		styles.TreeLine.Render("  ├── " + cfg.ModName + ".sln"),
 		styles.TreeLine.Render("  ├── " + cfg.ModName + ".csproj"),
-		styles.TreeLine.Render("  ├── Mod.cs"),
+		styles.TreeLine.Render("  ├── " + mainFile),
 		styles.TreeLine.Render("  ├── README.md"),
 		styles.TreeLine.Render("  └── .gitignore"),
 	}
 	return strings.Join(lines, "\n")
 }
 
-
 func buildDoneMarkdown(cfg config.ModConfig) (string, error) {
 	md := "## Next Steps\n\n" +
 		"### Open in your IDE\n" +
-		"- **Visual Studio**: open `" + cfg.ModName + ".csproj` → File > Open > Project/Solution\n" +
-		"- **JetBrains Rider**: open the folder or `.csproj` directly\n\n" +
+		"- **Visual Studio**: open `" + cfg.ModName + ".sln` → File > Open > Project/Solution\n" +
+		"- **JetBrains Rider**: open the folder or `" + cfg.ModName + ".sln` directly\n\n" +
 		"### Build the mod\n" +
 		"```sh\n" +
 		"cd " + cfg.ModName + "\n" +
 		"dotnet build -c Release\n" +
-		"```\n\n" +
-		"### Resources\n\n" +
-		"| Resource | Link |\n" +
-		"|---|---|\n" +
-		"| SPT Server (C#) Overview | [deepwiki.com/sp-tarkov](https://deepwiki.com/sp-tarkov/server-csharp/1-overview) |\n" +
-		"| Server Mod Examples | [github.com/sp-tarkov](https://github.com/sp-tarkov/server-mod-examples) |\n" +
-		"| SPT Wiki Modding Resources | [wiki.sp-tarkov.com](https://wiki.sp-tarkov.com/modding/Modding_Resources) |\n" +
-		"| SPT Client Mod Examples | [Jehree/SPTClientModExamples](https://github.com/Jehree/SPTClientModExamples) |\n"
+		"```\n"
+
+	if cfg.ModType == config.ModTypeClient {
+		dllPath := filepath.Join(cfg.SptInstallPath, "BepInEx", "plugins", cfg.ModName+".dll")
+		md += "\nThe PostBuild target automatically copies the compiled DLL to:\n" +
+			"`" + dllPath + "`\n"
+	}
+
 	return md, nil
+}
+
+func osc8Link(text, url string) string {
+	return fmt.Sprintf("\033]8;;%s\033\\%s\033]8;;\033\\", url, text)
+}
+
+func buildResourcesSection() string {
+	type resource struct {
+		name string
+		text string
+		url  string
+	}
+	resources := []resource{
+		{"SPT Server (C#) Overview", "deepwiki.com/sp-tarkov", "https://deepwiki.com/sp-tarkov/server-csharp/1-overview"},
+		{"Server Mod Examples", "github.com/sp-tarkov", "https://github.com/sp-tarkov/server-mod-examples"},
+		{"SPT Wiki Modding Resources", "wiki.sp-tarkov.com", "https://wiki.sp-tarkov.com/modding/Modding_Resources"},
+		{"SPT Client Mod Examples", "Jehree/SPTClientModExamples", "https://github.com/Jehree/SPTClientModExamples"},
+	}
+
+	heading := lipgloss.NewStyle().Foreground(styles.ColorAmber).Bold(true).Render("  Resources")
+	nameStyle := lipgloss.NewStyle().Foreground(styles.ColorAmberLight).Width(30)
+	linkStyle := lipgloss.NewStyle().Foreground(styles.ColorAmberDark).Underline(true)
+
+	hint := lipgloss.NewStyle().Foreground(styles.ColorMuted).Italic(true).Render("  Ctrl+Click to open in browser")
+
+	lines := []string{"", heading}
+	for _, r := range resources {
+		link := osc8Link(linkStyle.Render(r.text), r.url)
+		lines = append(lines, fmt.Sprintf("  %s %s", nameStyle.Render(r.name), link))
+	}
+	lines = append(lines, "", hint)
+	return strings.Join(lines, "\n")
 }

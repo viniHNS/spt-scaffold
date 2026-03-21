@@ -1,0 +1,15 @@
+# Binaries
+spt-scaffold
+spt-scaffold.exe
+spt-scaffold-darwin
+
+# Build output
+*.exe
+*.out
+
+# Go
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db

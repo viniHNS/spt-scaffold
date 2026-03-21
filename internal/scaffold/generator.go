@@ -3,57 +3,108 @@ package scaffold
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"spt-scaffold/internal/config"
+	"spt-scaffold/internal/templates"
 )
 
-// fileEntry describes a file to generate.
-type fileEntry struct {
-	// nameTemplate is a Go template for the file name (e.g. "{{.ModName}}.csproj").
-	nameTemplate string
-	bodyTemplate string
+// getTemplateDir returns the path in the embed.FS for the specific mod type and template.
+func getTemplateDir(cfg config.ModConfig) string {
+	base := cfg.ModType
+	if base != config.ModTypeServer && base != config.ModTypeClient {
+		base = config.ModTypeServer
+	}
+	tmpl := cfg.ModTemplate
+	if tmpl == "" {
+		tmpl = "empty"
+	}
+	// e.g. "server/empty"
+	return filepath.ToSlash(filepath.Join(base, tmpl))
 }
 
-var entries = []fileEntry{
-	{"{{.ModName}}.csproj", CsprojTemplate},
-	{"Mod.cs", ModCSTemplate},
-	{"README.md", ReadmeTemplate},
-	{".gitignore", GitignoreTemplate},
+// collectTemplateFiles walks the template directory recursively and returns
+// relative paths to all .tmpl files (excluding template.json).
+func collectTemplateFiles(dir string) ([]string, error) {
+	var files []string
+	err := fs.WalkDir(templates.FS, dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if d.Name() == "template.json" || !strings.HasSuffix(d.Name(), ".tmpl") {
+			return nil
+		}
+		// Store relative path from the template root dir
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepath.ToSlash(rel))
+		return nil
+	})
+	return files, err
 }
 
-// FileNames returns the rendered file names for the given config.
+// renderName applies template variables to a file name string.
+func renderName(nameTemplate string, cfg config.ModConfig) string {
+	t := template.Must(template.New("").Parse(nameTemplate))
+	var buf bytes.Buffer
+	_ = t.Execute(&buf, cfg)
+	return buf.String()
+}
+
+// FileNames returns the rendered file names (with relative paths) for the given config.
 func FileNames(cfg config.ModConfig) []string {
-	names := make([]string, len(entries))
-	for i, e := range entries {
-		t := template.Must(template.New("").Parse(e.nameTemplate))
-		var buf bytes.Buffer
-		_ = t.Execute(&buf, cfg)
-		names[i] = buf.String()
+	dir := getTemplateDir(cfg)
+	tmplFiles, err := collectTemplateFiles(dir)
+	if err != nil {
+		return nil
+	}
+
+	var names []string
+	for _, relPath := range tmplFiles {
+		nameTemplate := strings.TrimSuffix(relPath, ".tmpl")
+		names = append(names, renderName(nameTemplate, cfg))
 	}
 	return names
 }
 
 // GenerateFile generates the file at index idx inside the mod directory.
-// Returns the file's base name on success.
+// Returns the file's relative path on success.
 func GenerateFile(cfg config.ModConfig, idx int) (string, error) {
-	if idx >= len(entries) {
+	dir := getTemplateDir(cfg)
+	tmplFiles, err := collectTemplateFiles(dir)
+	if err != nil {
+		return "", fmt.Errorf("reading template directory: %w", err)
+	}
+
+	if idx >= len(tmplFiles) || idx < 0 {
 		return "", fmt.Errorf("invalid file index %d", idx)
 	}
-	e := entries[idx]
 
-	// Render file name.
-	nameTmpl := template.Must(template.New("name").Parse(e.nameTemplate))
-	var nameBuf bytes.Buffer
-	if err := nameTmpl.Execute(&nameBuf, cfg); err != nil {
-		return "", fmt.Errorf("rendering file name: %w", err)
+	relPath := tmplFiles[idx]
+	nameTemplate := strings.TrimSuffix(relPath, ".tmpl")
+
+	// Read file contents from embed.FS
+	fullPath := filepath.ToSlash(filepath.Join(dir, relPath))
+	bodyTemplateBytes, err := templates.FS.ReadFile(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("reading template file: %w", err)
 	}
-	name := nameBuf.String()
+	bodyTemplate := string(bodyTemplateBytes)
+
+	// Render file name (including any subdirectory in the path).
+	name := renderName(nameTemplate, cfg)
 
 	// Render file body.
-	bodyTmpl, err := template.New("body").Parse(e.bodyTemplate)
+	bodyTmpl, err := template.New("body").Parse(bodyTemplate)
 	if err != nil {
 		return "", fmt.Errorf("parsing template for %s: %w", name, err)
 	}
@@ -67,12 +118,13 @@ func GenerateFile(cfg config.ModConfig, idx int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("getting working directory: %w", err)
 	}
-	outDir := filepath.Join(cwd, cfg.ModName)
+
+	outPath := filepath.Join(cwd, cfg.ModName, name)
+	outDir := filepath.Dir(outPath)
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return "", fmt.Errorf("creating directory %s: %w", outDir, err)
 	}
 
-	outPath := filepath.Join(outDir, name)
 	if err := os.WriteFile(outPath, bodyBuf.Bytes(), 0644); err != nil {
 		return "", fmt.Errorf("writing %s: %w", name, err)
 	}
@@ -81,10 +133,10 @@ func GenerateFile(cfg config.ModConfig, idx int) (string, error) {
 }
 
 // Generate generates all files and sends each name to the provided channel.
-// It is used by the non-streaming code path.
 func Generate(cfg config.ModConfig, ch chan<- string) error {
-	for idx := range entries {
-		name, err := GenerateFile(cfg, idx)
+	names := FileNames(cfg)
+	for i := range names {
+		name, err := GenerateFile(cfg, i)
 		if err != nil {
 			return err
 		}
@@ -94,3 +146,4 @@ func Generate(cfg config.ModConfig, ch chan<- string) error {
 	}
 	return nil
 }
+

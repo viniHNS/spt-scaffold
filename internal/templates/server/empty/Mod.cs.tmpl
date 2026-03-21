@@ -1,0 +1,33 @@
+using SPTarkov.DI.Annotations;
+using SPTarkov.Server.Core.DI;
+using SPTarkov.Server.Core.Models.Enums;
+using SPTarkov.Server.Core.Models.Spt.Mod;
+using SPTarkov.Server.Core.Models.Utils;
+
+namespace {{.ModName}};
+
+public record ModMetadata : AbstractModMetadata
+{
+    public override string ModGuid { get; init; } = "com.{{.Author}}.{{.ModName}}";
+    public override string Name { get; init; } = "{{.ModName}}";
+    public override string Author { get; init; } = "{{.Author}}";
+    public override List<string>? Contributors { get; init; }
+    public override SemanticVersioning.Version Version { get; init; } = new("{{.Version}}");
+    public override SemanticVersioning.Range SptVersion { get; init; } = new("{{.SptVersionRange}}");
+    public override List<string>? Incompatibilities { get; init; }
+    public override Dictionary<string, SemanticVersioning.Range>? ModDependencies { get; init; }
+    public override string? Url { get; init; } = "{{.RepoURL}}";
+    public override bool? IsBundleMod { get; init; }
+    public override string License { get; init; } = "{{.License}}";
+}
+
+[Injectable(TypePriority = OnLoadOrder.PostDBModLoader + 1)]
+public class {{.ModName}}Mod(ISptLogger<{{.ModName}}Mod> logger) : IOnLoad
+{
+    public Task OnLoad()
+    {
+        logger.Info("{{.ModName}} loaded successfully!");
+        // TODO: Add your mod initialization logic here
+        return Task.CompletedTask;
+    }
+}

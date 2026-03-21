@@ -136,3 +136,8 @@ var SelectItem = lipgloss.NewStyle().
 var SelectItemActive = lipgloss.NewStyle().
 	Foreground(ColorAmber).
 	Bold(true)
+
+// WipItem is a non-selectable list item displayed as coming soon.
+var WipItem = lipgloss.NewStyle().
+	Foreground(ColorMuted).
+	Italic(true)
