@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"spt-scaffold/internal/config"
+	"spt-scaffold/internal/scaffold"
 	"spt-scaffold/internal/styles"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -98,22 +100,99 @@ func buildDoneContent(m Model) string {
 
 func renderTree(cfg config.ModConfig) string {
 	cwd, _ := os.Getwd()
-	root := filepath.Join(cwd, cfg.ModName)
-
-	mainFile := "Mod.cs"
-	if cfg.ModType == config.ModTypeClient {
-		mainFile = "Plugin.cs"
-	}
+	rootPath := filepath.Join(cwd, cfg.ModName)
 
 	lines := []string{
-		styles.TreeDir.Render(root + "/"),
-		styles.TreeLine.Render("  ├── " + cfg.ModName + ".sln"),
-		styles.TreeLine.Render("  ├── " + cfg.ModName + ".csproj"),
-		styles.TreeLine.Render("  ├── " + mainFile),
-		styles.TreeLine.Render("  ├── README.md"),
-		styles.TreeLine.Render("  └── .gitignore"),
+		styles.TreeDir.Render(rootPath + "/"),
 	}
+
+	names := scaffold.FileNames(cfg)
+	root := buildNodeTree(names)
+
+	// Sort root children: dirs first, then files alphabetically
+	var children []*treeNode
+	for _, c := range root.children {
+		children = append(children, c)
+	}
+	sort.Slice(children, func(i, j int) bool {
+		if children[i].isDir != children[j].isDir {
+			return children[i].isDir
+		}
+		return children[i].name < children[j].name
+	})
+
+	for i, c := range children {
+		lines = append(lines, formatTree(c, "  ", i == len(children)-1)...)
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+type treeNode struct {
+	name     string
+	isDir    bool
+	children map[string]*treeNode
+}
+
+func buildNodeTree(paths []string) *treeNode {
+	root := &treeNode{children: make(map[string]*treeNode), isDir: true}
+	for _, p := range paths {
+		parts := strings.Split(filepath.ToSlash(p), "/")
+		curr := root
+		for i, part := range parts {
+			if _, ok := curr.children[part]; !ok {
+				curr.children[part] = &treeNode{
+					name:     part,
+					isDir:    i < len(parts)-1,
+					children: make(map[string]*treeNode),
+				}
+			}
+			curr = curr.children[part]
+		}
+	}
+	return root
+}
+
+func formatTree(node *treeNode, prefix string, isLast bool) []string {
+	var lines []string
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	nameFmt := node.name
+	if node.isDir {
+		nameFmt += "/"
+		lines = append(lines, styles.TreeDir.Render(prefix+connector+nameFmt))
+	} else {
+		lines = append(lines, styles.TreeLine.Render(prefix+connector+nameFmt))
+	}
+
+	if node.isDir {
+		newPrefix := prefix
+		if !isLast {
+			newPrefix += "│   "
+		} else {
+			newPrefix += "    "
+		}
+
+		var children []*treeNode
+		for _, c := range node.children {
+			children = append(children, c)
+		}
+		sort.Slice(children, func(i, j int) bool {
+			if children[i].isDir != children[j].isDir {
+				return children[i].isDir
+			}
+			return children[i].name < children[j].name
+		})
+
+		for i, c := range children {
+			lines = append(lines, formatTree(c, newPrefix, i == len(children)-1)...)
+		}
+	}
+
+	return lines
 }
 
 func buildDoneMarkdown(cfg config.ModConfig) (string, error) {
