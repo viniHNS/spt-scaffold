@@ -122,8 +122,10 @@ The engine uses standard Go `text/template`. You can use these variables anywher
 | `{{.ModName}}` | Mod identifier (e.g., `MyAwesomeMod`) |
 | `{{.Author}}` | Your username |
 | `{{.Version}}` | Mod version (e.g., `1.0.0`) |
-| `{{.SptVersion}}` | Target SPT version |
+| `{{.SptVersion}}` | Pinned SPT version (e.g., `4.0.13`) |
+| `{{.SptVersionRange}}` | Version range (e.g., `~4.0.0`) |
 | `{{.Desc}}` | Short description |
+| `{{.RepoURL}}` | Repository URL |
 | `{{.License}}` | Selected license (SPDX identifier) |
 | `{{.ProjectGuid}}` | Auto-generated UUID for Visual Studio |
 | `{{.SptInstallPath}}` | **Client mods only** — Path to SPT install |
