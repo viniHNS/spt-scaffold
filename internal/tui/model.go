@@ -11,7 +11,7 @@ import (
 )
 
 // AppVersion is the displayed tool version.
-const AppVersion = "v0.1.0"
+const AppVersion = "v0.2.0"
 
 // Screen states for the TUI state machine.
 type state int
