@@ -1,50 +1,75 @@
+<div align="center">
+
 # spt-scaffold
 
-A TUI wizard that scaffolds ready-to-build **SPT 4.0 mod** projects — both **server** and **client** mods.
+A TUI wizard that scaffolds ready-to-build SPT 4.x mod projects — server (C# / .NET 9) and client (BepInEx).
 
-![Go 1.22+](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)
+![Version](https://img.shields.io/github/v/release/viniHNS/spt-scaffold?label=version&color=orange&style=flat)
+![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat)
+![Platform](https://img.shields.io/badge/platform-Windows%20%C2%B7%20Linux-lightgrey?style=flat)
+
+[Server Mods](#server-mods) · [Client Mods](#client-mods) · [6 Templates](#templates) · [Windows · Linux](#build-from-source)
+
+</div>
 
 ---
 
 ## Usage
 
-Download the latest binary from [Releases](https://github.com/viniHNS/spt-scaffold-go/releases) and run it inside the folder where you want your mod created.
+Download the latest binary from [Releases](https://github.com/viniHNS/spt-scaffold-go/releases) and run it inside the folder where you want your mod created:
 
 ```sh
-./spt-scaffold
+.\spt-scaffold.exe    # Windows
+./spt-scaffold        # Linux
 ```
 
-The wizard will ask for:
+The wizard walks you through:
 
 | Field | Description |
 |---|---|
 | Mod Type | `server` or `client` |
 | Template | Project template (depends on mod type) |
 | SPT Install Path | Absolute path to SPT installation (client mods only) |
-| Mod Name | No spaces, used as the C# namespace |
+| Mod Name | No spaces — used as C# namespace and folder name |
 | Author | Your username |
-| Version | Mod version (semver) |
-| SPT Version | Fetched live from NuGet (scrollable picker) |
-| Description | Short description, max 120 chars (optional) |
-| Repository URL | `https://` URL (optional) |
-| License | MIT, Apache-2.0, GPL-3.0, and more |
+| Version | Mod version in `x.y.z` format |
+| SPT Version | Fetched live from NuGet — scrollable picker. Falls back to `4.0.0` if NuGet is unreachable. |
+| Description | Optional, max 120 characters |
+| Repository URL | Optional, must start with `https://` |
+| License | SPDX license picker (MIT, Apache-2.0, GPL-3.0, and more) |
 
-### Available Templates
+---
 
-**Server:**
-- **Empty** — Minimal `IOnLoad` entry point
-- **Edit Database** — `DatabaseService` example
-- **Read Json Config** — Custom `config.json` via `ModHelper`
+## Templates
 
-**Client:**
-- **Empty** — Minimal BepInEx plugin with `Awake`
-- **BepInEx Configuration** — Plugin with `Config.Bind` entries (F12 configurable)
-- **Harmony Patch** — Plugin with example `ModulePatch` (Prefix/Postfix)
+### Server Mods
+
+**C# / .NET 9 / NuGet**
+
+| Template | Description | Files |
+|---|---|---|
+| `empty` | Minimal `IOnLoad` entry point | 5 |
+| `editDatabase` | `DatabaseService` example with item injection | 5 |
+| `readJsonConfig` | Custom `config.json` loaded via `ModHelper` | 6 |
+
+> `readJsonConfig` generates an additional `config.json` file alongside the standard 5.
+
+### Client Mods
+
+**BepInEx / netstandard2.1**
+
+| Template | Description | Files |
+|---|---|---|
+| `empty` | Minimal `BaseUnityPlugin` with `Awake` | 5 |
+| `bepinexConfig` | Plugin with `Config.Bind` entries (F12 menu configurable) | 5 |
+| `harmonyPatch` | Plugin with `ModulePatch` example (Prefix/Postfix) | 6 |
+
+> `harmonyPatch` generates an additional `Patches/ExamplePatch.cs` file inside a subdirectory.
 
 ### Generated Output
 
-**Server mod** (`server/empty`):
+**`server/empty`**
 ```
 MyMod/
 ├── MyMod.sln
@@ -54,99 +79,147 @@ MyMod/
 └── .gitignore
 ```
 
-**Client mod** (`client/empty`):
+**`client/harmonyPatch`**
 ```
 MyMod/
 ├── MyMod.sln
 ├── MyMod.csproj
 ├── Plugin.cs
 ├── README.md
-└── .gitignore
+├── .gitignore
+└── Patches/
+    └── ExamplePatch.cs
 ```
-
-> Some templates may generate additional files (e.g., `readJsonConfig` also creates `config.json`).
 
 ---
 
-## Build from source
+## Build from Source
 
-**Windows**
+**Requirements:** Go 1.22+
+
 ```sh
 git clone https://github.com/viniHNS/spt-scaffold-go
 cd spt-scaffold-go
 go mod tidy
+```
+
+**Windows**
+```sh
 go build -ldflags="-s -w" -o spt-scaffold.exe
 .\spt-scaffold.exe
 ```
 
 **Linux**
 ```sh
-git clone https://github.com/viniHNS/spt-scaffold-go
-cd spt-scaffold-go
-go mod tidy
 go build -ldflags="-s -w" -o spt-scaffold
 ./spt-scaffold
 ```
 
-> **Note:** The prebuilt Windows binary does not display correctly under Wine.
-> Build natively for Linux instead.
+> The prebuilt Windows binary does not display correctly under Wine. Build natively on Linux instead.
 
 ---
 
----
+## Contributing a Template
 
-## How to Contribute a New Template
+Templates are plain files — no Go knowledge required. Adding a new template means creating a folder with `.tmpl` files and a `template.json`. The scaffold engine discovers and bundles templates automatically at compile time via Go's `embed` package.
 
-`spt-scaffold-go` is designed to be extensible. Since it uses Go's `embed` package, adding a new template (Server or Client) requires **zero changes** to the Go source code!
+### 1. Create the folder
 
-### Quick Step-by-Step
+Navigate to the correct directory and create a descriptive folder name:
 
-> Use existing folders in `internal/templates/` as a base for your new template.
+```
+internal/templates/server/<your-template>/    # for server mods
+internal/templates/client/<your-template>/    # for client mods
+```
 
-1.  **Create your folder**: Navigate to `internal/templates/server/` or `internal/templates/client/` and create a descriptive folder name (e.g., `myTraderTemplate`).
-2.  **Add Metadata**: Create a `template.json` file to define how it appears in the TUI:
-    ```json
-    {
-      "Label": "Custom Trader",
-      "Desc": "A starter kit for adding a new trader with custom items."
-    }
-    ```
-3.  **Create Template Files**: Add your `.cs`, `.csproj`, or other files using the `.tmpl` extension.
+The folder name becomes the template's identifier (e.g. `myTrader`).
 
-### Template Syntax & Variables
+### 2. Add `template.json`
 
-The engine uses standard Go `text/template`. You can use these variables anywhere in the **file content** or even in the **filename**:
+Every template folder must contain a `template.json` that defines how it appears in the TUI picker:
 
-| Variable | Description |
+```json
+{
+  "Label": "Custom Trader",
+  "Desc":  "A starter kit for adding a new trader with custom items."
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `Label` | string | Display name shown in the template picker |
+| `Desc` | string | Short description shown below the label in the picker |
+
+### 3. Add `.tmpl` files
+
+Each `.tmpl` file in the folder becomes a generated file. The engine uses Go `text/template` syntax — variables are written as `{{.FieldName}}`.
+
+**The filename itself can also use template variables:**
+
+| Filename on disk | Generated as |
 |---|---|
-| `{{.ModName}}` | Mod identifier (e.g., `MyAwesomeMod`) |
-| `{{.Author}}` | Your username |
-| `{{.Version}}` | Mod version (e.g., `1.0.0`) |
-| `{{.SptVersion}}` | Pinned SPT version (e.g., `4.0.13`) |
-| `{{.SptVersionRange}}` | Version range (e.g., `~4.0.0`) |
-| `{{.Desc}}` | Short description |
-| `{{.RepoURL}}` | Repository URL |
-| `{{.License}}` | Selected license (SPDX identifier) |
-| `{{.ProjectGuid}}` | Auto-generated UUID for Visual Studio |
-| `{{.SptInstallPath}}` | **Client mods only** — Path to SPT install |
+| `{{.ModName}}.csproj.tmpl` | `MyMod.csproj` |
+| `{{.ModName}}.sln.tmpl` | `MyMod.sln` |
+| `Mod.cs.tmpl` | `Mod.cs` |
+| `Patches/ExamplePatch.cs.tmpl` | `Patches/ExamplePatch.cs` |
 
-> **Dynamic Filenames:** To name a file based on user input, use the variable in the filename!  
-> **(Incorrect)** `Mod.csproj.tmpl`  
-> **(Correct)** `{{.ModName}}.csproj.tmpl`
+Every template must include `{{.ModName}}.csproj.tmpl` and `{{.ModName}}.sln.tmpl` — these are required to produce a buildable project.
 
-### Test & Submit
+Subdirectories are supported. The engine walks the template folder recursively, so `Patches/ExamplePatch.cs.tmpl` generates `Patches/ExamplePatch.cs` inside the mod directory.
 
-1.  **Rebuild**: Run `go build -ldflags="-s -w" -o spt-scaffold.exe` to bundle the new files.
-2.  **Run**: Launch the tool. Your new template will appear automatically in the list.
-3.  **PR**: Everything working? Submit a Pull Request! We love community contributions.
+#### Template Variables
 
----
+All fields from `ModConfig` are available in every `.tmpl` file and in filenames:
+
+| Variable | Example value | Description |
+|---|---|---|
+| `{{.ModName}}` | `MyAwesomeMod` | Mod identifier, C# namespace, folder name |
+| `{{.Author}}` | `viniHNS` | Author username |
+| `{{.Version}}` | `1.0.0` | Mod version |
+| `{{.SptVersion}}` | `4.0.13` | Pinned SPT NuGet version |
+| `{{.SptVersionRange}}` | `~4.0.0` | SemanticVersioning range for `Mod.cs` |
+| `{{.Desc}}` | `A cool mod` | Short description |
+| `{{.RepoURL}}` | `https://github.com/…` | Repository URL |
+| `{{.License}}` | `MIT` | SPDX license identifier |
+| `{{.ProjectGuid}}` | `{A1B2-…}` | Auto-generated UUID for `.sln` files |
+| `{{.SptInstallPath}}` | `D:\Games\SPT` | SPT install path **(client mods only)** |
+
+### 4. Test locally
+
+Templates are bundled at compile time by Go's `embed` package. After adding your files, recompile the binary to include them:
+
+**Windows**
+```sh
+go build -ldflags="-s -w" -o spt-scaffold.exe
+.\spt-scaffold.exe
+```
+
+**Linux**
+```sh
+go build -ldflags="-s -w" -o spt-scaffold
+./spt-scaffold
+```
+
+Your template will appear automatically in the picker. Verify the generated output looks correct before submitting.
+
+### 5. Submit a Pull Request
+
+Open a PR against `main`. Before submitting, confirm:
+
+- [ ] `template.json` present with `Label` and `Desc`
+- [ ] At least one `.tmpl` file
+- [ ] `{{.ModName}}.csproj.tmpl` and `{{.ModName}}.sln.tmpl` present (required for a buildable project)
+- [ ] Generated output builds with `dotnet build`
+- [ ] No hardcoded author names or paths in template files
 
 ---
 
 ## Resources
 
-- [SPT Server C# Overview](https://deepwiki.com/sp-tarkov/server-csharp/1-overview)
-- [Server Mod Examples](https://github.com/sp-tarkov/server-mod-examples)
-- [SPT Client Mod Examples](https://github.com/Jehree/SPTClientModExamples)
-- [SPT Wiki](https://wiki.sp-tarkov.com/modding/Modding_Resources)
+| Resource | URL |
+|---|---|
+| SPT Server C# Overview | https://deepwiki.com/sp-tarkov/server-csharp/1-overview |
+| Server Mod Examples | https://github.com/sp-tarkov/server-mod-examples |
+| Client Mod Examples | https://github.com/Jehree/SPTClientModExamples |
+| SPT Wiki — Modding Resources | https://wiki.sp-tarkov.com/modding/Modding_Resources |
+| NuGet — SPTarkov.Server.Core | https://www.nuget.org/packages/SPTarkov.Server.Core |
