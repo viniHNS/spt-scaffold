@@ -1,6 +1,6 @@
 <div align="center">
 
-# spt-scaffold
+# SPT Scaffold
 
 A TUI wizard that scaffolds ready-to-build SPT 4.x mod projects — server (C# / .NET 9) and client (BepInEx).
 
